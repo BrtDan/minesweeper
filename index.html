@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campo Minato</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            background-color: #121212;
+            color: #fff;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        .menu {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .menu button {
+            cursor: pointer;
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 5px;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .menu button:hover {
+            background-color: #555;
+            transform: scale(1.05);
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .controls input, .controls button {
+            margin: 0 5px;
+            padding: 5px;
+            font-size: 16px;
+        }
+        .controls button {
+            cursor: pointer;
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .controls button:hover {
+            background-color: #555;
+            transform: scale(1.05);
+        }
+        .game-container {
+            display: grid;
+            gap: 1px;
+            border: 2px solid #444;
+            padding: 5px;
+        }
+        .cell {
+            width: 20px;
+            height: 20px;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+        .cell.revealed {
+            background-color: #666;
+            cursor: default;
+            border: 1px solid #555;
+        }
+        .cell.mine {
+            background-color: red;
+            animation: mineAnimation 0.5s;
+        }
+        .cell.flagged {
+            background-color: #333;
+            background-image: url('https://img.icons8.com/emoji/20/000000/triangular-flag.png');
+            background-size: cover;
+            background-position: center;
+        }
+        .cell.highlight {
+            background-color: #444;
+        }
+        .win-message, .lose-message {
+            display: none;
+            font-size: 32px;
+            animation: messageAnimation 2s infinite;
+        }
+        .win-message {
+            color: #4CAF50;
+        }
+        .lose-message {
+            color: red;
+        }
+        @keyframes messageAnimation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @keyframes mineAnimation {
+            0% { background-color: red; }
+            50% { background-color: darkred; }
+            100% { background-color: red; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>Mine rimaste: <span id="mines-left">0</span></div>
+        <div>Tempo: <span id="timer">0</span> s</div>
+    </div>
+    <div class="menu">
+        <button onclick="setLevel('ez')">Asia</button>
+        <button onclick="setLevel('mid')">Emanuele</button>
+        <button onclick="setLevel('hard')">Daniel</button>
+        <button onclick="toggleCustomMenu()">Custom</button>
+    </div>
+    <div class="controls" id="custom-menu" style="display:none;">
+        <label for="grid-size">Dimensione griglia:</label>
+        <input type="number" id="grid-width" min="1" max="50" value="24">
+        x
+        <input type="number" id="grid-height" min="1" max="50" value="24">
+        <button onclick="resetGame()">Applica</button>
+    </div>
+    <div class="game-container"></div>
+    <div class="win-message">Hai vinto!</div>
+    <div class="lose-message">Hai perso!</div>
+
+    <script>
+        let gridSizeX = 24;
+        let gridSizeY = 24;
+        let mineCount = 99;
+        let minePositions = [];
+        let flagsCount = 0;
+        let firstClick = true;
+        let timer = null;
+        let timeElapsed = 0;
+
+        const gameContainer = document.querySelector('.game-container');
+        const minesLeftDisplay = document.getElementById('mines-left');
+        const timerDisplay = document.getElementById('timer');
+        const winMessage = document.querySelector('.win-message');
+        const loseMessage = document.querySelector('.lose-message');
+        const gridWidthInput = document.getElementById('grid-width');
+        const gridHeightInput = document.getElementById('grid-height');
+        const customMenu = document.getElementById('custom-menu');
+
+        function startTimer() {
+            timer = setInterval(() => {
+                timeElapsed++;
+                timerDisplay.textContent = timeElapsed;
+            }, 1000);
+        }
+
+        function createGrid() {
+            gameContainer.innerHTML = '';
+            firstClick = true;
+            flagsCount = 0;
+            timeElapsed = 0;
+            clearInterval(timer);
+            timerDisplay.textContent = timeElapsed;
+            minesLeftDisplay.textContent = mineCount - flagsCount;
+            winMessage.style.display = 'none';
+            loseMessage.style.display = 'none';
+
+            gameContainer.style.gridTemplateColumns = `repeat(${gridSizeX}, 20px)`;
+            gameContainer.style.gridTemplateRows = `repeat(${gridSizeY}, 20px)`;
+
+            for (let row = 0; row < gridSizeY; row++) {
+                for (let col = 0; col < gridSizeX; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.addEventListener('click', () => handleCellClick(cell));
+                    cell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        toggleFlag(cell);
+                    });
+                    cell.addEventListener('mousedown', () => highlightCells(cell));
+                    cell.addEventListener('mouseup', () => clearHighlights());
+                    gameContainer.appendChild(cell);
+                }
+            }
+        }
+
+        function placeMines(excludeRow, excludeCol) {
+            minePositions = [];
+            while (minePositions.length < mineCount) {
+                const row = Math.floor(Math.random() * gridSizeY);
+                const col = Math.floor(Math.random() * gridSizeX);
+                const position = `${row}-${col}`;
+                if (!minePositions.includes(position) && !isInExcludeArea(row, col, excludeRow, excludeCol)) {
+                    minePositions.push(position);
+                }
+            }
+        }
+
+        function isInExcludeArea(row, col, excludeRow, excludeCol) {
+            return Math.abs(row - excludeRow) <= 1 && Math.abs(col - excludeCol) <= 1;
+        }
+
+        function handleCellClick(cell) {
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const position = `${row}-${col}`;
+
+            if (firstClick) {
+                firstClick = false;
+                placeMines(row, col);
+                startTimer();
+            }
+
+            if (cell.classList.contains('revealed') || cell.classList.contains('flagged')) {
+                return;
+            }
+
+            cell.classList.add('revealed');
+
+            if (minePositions.includes(position)) {
+                cell.classList.add('mine');
+                clearInterval(timer);
+                loseMessage.style.display = 'block';
+                return;
+            }
+
+            const mineCount = countMinesAround(row, col);
+            if (mineCount > 0) {
+                cell.textContent = mineCount;
+                cell.addEventListener('click', () => revealIfFlagsMatch(cell, mineCount));
+            } else {
+                revealAdjacentCells(row, col);
+            }
+
+            checkWin();
+        }
+
+        function toggleFlag(cell) {
+            if (cell.classList.contains('revealed')) return;
+
+            if (cell.classList.contains('flagged')) {
+                cell.classList.remove('flagged');
+                flagsCount--;
+            } else {
+                cell.classList.add('flagged');
+                flagsCount++;
+            }
+            minesLeftDisplay.textContent = mineCount - flagsCount;
+
+            checkWin();
+        }
+
+        function countMinesAround(row, col) {
+            let count = 0;
+            for (let r = -1; r <= 1; r++) {
+                for (let c = -1; c <= 1; c++) {
+                    if (r === 0 && c === 0) continue;
+                    const newRow = row + r;
+                    const newCol = col + c;
+                    if (newRow >= 0 && newRow < gridSizeY && newCol >= 0 && newCol < gridSizeX) {
+                        if (minePositions.includes(`${newRow}-${newCol}`)) {
+                            count++;
+                        }
+                    }
+                }
+            }
+            return count;
+        }
+
+        function countFlagsAround(row, col) {
+            let count = 0;
+            for (let r = -1; r <= 1; r++) {
+                for (let c = -1; c <= 1; c++) {
+                    if (r === 0 && c === 0) continue;
+                    const newRow = row + r;
+                    const newCol = col + c;
+                    if (newRow >= 0 && newRow < gridSizeY && newCol >= 0 && newCol < gridSizeX) {
+                        const adjacentCell = document.querySelector(`.cell[data-row="${newRow}"][data-col="${newCol}"]`);
+                        if (adjacentCell && adjacentCell.classList.contains('flagged')) {
+                            count++;
+                        }
+                    }
+                }
+            }
+            return count;
+        }
+
+        function revealIfFlagsMatch(cell, mineCount) {
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const flagsAround = countFlagsAround(row, col);
+            if (flagsAround === mineCount) {
+                revealAdjacentCells(row, col);
+            }
+        }
+
+        function revealAdjacentCells(row, col) {
+            for (let r = -1; r <= 1; r++) {
+                for (let c = -1; c <= 1; c++) {
+                    const newRow = row + r;
+                    const newCol = col + c;
+                    if (newRow >= 0 && newRow < gridSizeY && newCol >= 0 && newCol < gridSizeX) {
+                        const adjacentCell = document.querySelector(`.cell[data-row="${newRow}"][data-col="${newCol}"]`);
+                        if (!adjacentCell.classList.contains('revealed') && !adjacentCell.classList.contains('flagged')) {
+                            handleCellClick(adjacentCell);
+                        }
+                    }
+                }
+            }
+        }
+
+        function highlightCells(cell) {
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const mineCount = countMinesAround(row, col);
+            const flagsAround = countFlagsAround(row, col);
+
+            if (flagsAround < mineCount && cell.classList.contains('revealed')) {
+                highlightAdjacentCells(row, col);
+            }
+        }
+
+        function highlightAdjacentCells(row, col) {
+            for (let r = -1; r <= 1; r++) {
+                for (let c = -1; c <= 1; c++) {
+                    const newRow = row + r;
+                    const newCol = col + c;
+                    if (newRow >= 0 && newRow < gridSizeY && newCol >= 0 && newCol < gridSizeX) {
+                        const adjacentCell = document.querySelector(`.cell[data-row="${newRow}"][data-col="${newCol}"]`);
+                        if (!adjacentCell.classList.contains('revealed') && !adjacentCell.classList.contains('flagged')) {
+                            adjacentCell.classList.add('highlight');
+                        }
+                    }
+                }
+            }
+        }
+
+        function clearHighlights() {
+            const highlightedCells = document.querySelectorAll('.cell.highlight');
+            highlightedCells.forEach(cell => {
+                cell.classList.remove('highlight');
+            });
+        }
+
+        function checkWin() {
+            const revealedCells = document.querySelectorAll('.cell.revealed').length;
+            const totalCells = gridSizeX * gridSizeY;
+            if (revealedCells + mineCount === totalCells) {
+                clearInterval(timer);
+                winMessage.style.display = 'block';
+            }
+        }
+
+        function resetGame() {
+            gridSizeX = Math.max(1, Math.min(50, parseInt(gridWidthInput.value)));
+            gridSizeY = Math.max(1, Math.min(50, parseInt(gridHeightInput.value)));
+            if (gridSizeX === 24 && gridSizeY === 24) {
+                mineCount = 99;
+            } else {
+                mineCount = Math.floor(gridSizeX * gridSizeY * 0.2);
+            }
+            createGrid();
+        }
+
+        function setLevel(level) {
+            if (level === 'ez') {
+                gridSizeX = 10;
+                gridSizeY = 10;
+                mineCount = 10;
+            } else if (level === 'mid') {
+                gridSizeX = 18;
+                gridSizeY = 18;
+                mineCount = 40;
+            } else if (level === 'hard') {
+                gridSizeX = 24;
+                gridSizeY = 24;
+                mineCount = 99;
+            }
+            createGrid();
+        }
+
+        function toggleCustomMenu() {
+            if (customMenu.style.display === 'none') {
+                customMenu.style.display = 'flex';
+            } else {
+                customMenu.style.display = 'none';
+            }
+        }
+
+        createGrid();
+    </script>
+</body>
+</html>
