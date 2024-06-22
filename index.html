@@ -111,6 +111,22 @@
         .lose-message {
             color: red;
         }
+        .restart-button {
+            display: none;
+            cursor: pointer;
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .restart-button:hover {
+            background-color: #555;
+            transform: scale(1.05);
+        }
         @keyframes messageAnimation {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -139,11 +155,12 @@
         <input type="number" id="grid-width" min="1" max="50" value="24">
         x
         <input type="number" id="grid-height" min="1" max="50" value="24">
-        <button onclick="resetGame()">Applica</button>
+        <button onclick="applyCustomGrid()">Applica</button>
     </div>
     <div class="game-container"></div>
     <div class="win-message">Hai vinto!</div>
     <div class="lose-message">Hai perso!</div>
+    <button class="restart-button" onclick="restartGame()">Rigioca</button>
 
     <script>
         let gridSizeX = 24;
@@ -154,6 +171,7 @@
         let firstClick = true;
         let timer = null;
         let timeElapsed = 0;
+        let gameOver = false;
 
         const gameContainer = document.querySelector('.game-container');
         const minesLeftDisplay = document.getElementById('mines-left');
@@ -163,6 +181,7 @@
         const gridWidthInput = document.getElementById('grid-width');
         const gridHeightInput = document.getElementById('grid-height');
         const customMenu = document.getElementById('custom-menu');
+        const restartButton = document.querySelector('.restart-button');
 
         function startTimer() {
             timer = setInterval(() => {
@@ -176,11 +195,13 @@
             firstClick = true;
             flagsCount = 0;
             timeElapsed = 0;
+            gameOver = false;
             clearInterval(timer);
             timerDisplay.textContent = timeElapsed;
             minesLeftDisplay.textContent = mineCount - flagsCount;
             winMessage.style.display = 'none';
             loseMessage.style.display = 'none';
+            restartButton.style.display = 'none';
 
             gameContainer.style.gridTemplateColumns = `repeat(${gridSizeX}, 20px)`;
             gameContainer.style.gridTemplateRows = `repeat(${gridSizeY}, 20px)`;
@@ -220,6 +241,8 @@
         }
 
         function handleCellClick(cell) {
+            if (gameOver) return;
+
             const row = parseInt(cell.dataset.row);
             const col = parseInt(cell.dataset.col);
             const position = `${row}-${col}`;
@@ -240,6 +263,8 @@
                 cell.classList.add('mine');
                 clearInterval(timer);
                 loseMessage.style.display = 'block';
+                restartButton.style.display = 'block';
+                gameOver = true;
                 return;
             }
 
@@ -255,6 +280,8 @@
         }
 
         function toggleFlag(cell) {
+            if (gameOver) return;
+
             if (cell.classList.contains('revealed')) return;
 
             if (cell.classList.contains('flagged')) {
@@ -367,6 +394,8 @@
             if (revealedCells + mineCount === totalCells) {
                 clearInterval(timer);
                 winMessage.style.display = 'block';
+                restartButton.style.display = 'block';
+                gameOver = true;
             }
         }
 
@@ -396,6 +425,7 @@
                 mineCount = 99;
             }
             createGrid();
+            customMenu.style.display = 'none';
         }
 
         function toggleCustomMenu() {
@@ -404,6 +434,15 @@
             } else {
                 customMenu.style.display = 'none';
             }
+        }
+
+        function applyCustomGrid() {
+            resetGame();
+            customMenu.style.display = 'none';
+        }
+
+        function restartGame() {
+            createGrid();
         }
 
         createGrid();
